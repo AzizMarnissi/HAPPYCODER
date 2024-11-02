@@ -1,0 +1,52 @@
+import pandas as pd
+from sklearn.neighbors import NearestNeighbors
+from sklearn.preprocessing import StandardScaler
+
+# Load the dataset
+ratings = pd.read_csv('path/to/your/Book-Crossings.csv', sep=';', encoding='latin-1')
+
+# Display the first few rows of the dataset
+ratings.head()
+# Filter out users with less than 200 ratings
+user_counts = ratings['User-ID'].value_counts()
+valid_users = user_counts[user_counts >= 200].index
+filtered_ratings = ratings[ratings['User-ID'].isin(valid_users)]
+
+# Filter out books with less than 100 ratings
+book_counts = filtered_ratings['ISBN'].value_counts()
+valid_books = book_counts[book_counts >= 100].index
+filtered_ratings = filtered_ratings[filtered_ratings['ISBN'].isin(valid_books)]
+
+# Create a pivot table for the filtered ratings
+pivot_table = filtered_ratings.pivot_table(index='User-ID', columns='ISBN', values='Book-Rating', fill_value=0)
+# Scale the data
+scaler = StandardScaler()
+scaled_data = scaler.fit_transform(pivot_table)
+
+# Create the Nearest Neighbors model
+knn = NearestNeighbors(n_neighbors=6, algorithm='auto', metric='cosine')
+knn.fit(scaled_data)
+def get_recommends(book_title):
+    # Get the ISBN of the book
+    book_isbn = filtered_ratings.loc[filtered_ratings['Book-Title'] == book_title, 'ISBN'].unique()
+    
+    if not book_isbn:
+        return [book_title, []]
+    
+    book_index = pivot_table.columns.get_loc(book_isbn[0])
+    
+    # Find the nearest neighbors
+    distances, indices = knn.kneighbors(scaled_data[:, book_index].reshape(1, -1))
+    
+    recommended_books = []
+    
+    for i in range(1, len(distances.flatten())):
+        # Get the book title for the recommended ISBN
+        recommended_isbn = pivot_table.columns[indices.flatten()[i]]
+        recommended_title = filtered_ratings.loc[filtered_ratings['ISBN'] == recommended_isbn, 'Book-Title'].values[0]
+        recommended_books.append([recommended_title, distances.flatten()[i]])
+    
+    return [book_title, recommended_books]
+# Test the recommendation function
+result = get_recommends("The Queen of the Damned (Vampire Chronicles (Paperback))")
+print(result)
