@@ -1,0 +1,100 @@
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+
+# Set image dimensions
+IMG_HEIGHT = 150
+IMG_WIDTH = 150
+BATCH_SIZE = 32
+
+# Create ImageDataGenerators for train, validation, and test datasets
+train_data_gen = ImageDataGenerator(rescale=1./255)
+train_data_gen = train_data_gen.flow_from_directory(
+    'cats_and_dogs/train',
+    target_size=(IMG_HEIGHT, IMG_WIDTH),
+    batch_size=BATCH_SIZE,
+    class_mode='binary'
+)
+
+validation_data_gen = ImageDataGenerator(rescale=1./255)
+validation_data_gen = validation_data_gen.flow_from_directory(
+    'cats_and_dogs/validation',
+    target_size=(IMG_HEIGHT, IMG_WIDTH),
+    batch_size=BATCH_SIZE,
+    class_mode='binary'
+)
+
+test_data_gen = ImageDataGenerator(rescale=1./255)
+test_data_gen = test_data_gen.flow_from_directory(
+    'cats_and_dogs/test',
+    target_size=(IMG_HEIGHT, IMG_WIDTH),
+    batch_size=BATCH_SIZE,
+    class_mode=None,
+    shuffle=False
+)
+train_image_generator = ImageDataGenerator(
+    rescale=1./255,
+    rotation_range=40,
+    width_shift_range=0.2,
+    height_shift_range=0.2,
+    shear_range=0.2,
+    zoom_range=0.2,
+    horizontal_flip=True,
+    fill_mode='nearest'
+)
+
+train_data_gen = train_image_generator.flow_from_directory(
+    'cats_and_dogs/train',
+    target_size=(IMG_HEIGHT, IMG_WIDTH),
+    batch_size=BATCH_SIZE,
+    class_mode='binary'
+)
+from tensorflow.keras import layers, models
+
+model = models.Sequential()
+model.add(layers.Conv2D(32, (3, 3), activation='relu', input_shape=(IMG_HEIGHT, IMG_WIDTH, 3)))
+model.add(layers.MaxPooling2D(pool_size=(2, 2)))
+
+model.add(layers.Conv2D(64, (3, 3), activation='relu'))
+model.add(layers.MaxPooling2D(pool_size=(2, 2)))
+
+model.add(layers.Conv2D(128, (3, 3), activation='relu'))
+model.add(layers.MaxPooling2D(pool_size=(2, 2)))
+
+model.add(layers.Conv2D(128, (3, 3), activation='relu'))
+model.add(layers.MaxPooling2D(pool_size=(2, 2)))
+
+model.add(layers.Flatten())
+model.add(layers.Dense(512, activation='relu'))
+model.add(layers.Dense(1, activation='sigmoid'))  # Binary classification
+
+model.compile(optimizer='adam',
+              loss='binary_crossentropy',
+              metrics=['accuracy'])
+history = model.fit(
+    train_data_gen,
+    steps_per_epoch=train_data_gen.samples // BATCH_SIZE,
+    epochs=20,  # You can adjust this for better accuracy
+    validation_data=validation_data_gen,
+    validation_steps=validation_data_gen.samples // BATCH_SIZE
+)
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Predict the probabilities of the test images
+test_images = test_data_gen.filenames
+probabilities = model.predict(test_data_gen)
+predictions = (probabilities > 0.5).astype(int).flatten()
+
+# Plotting the images with their predicted probabilities
+def plotImages(images, probabilities):
+    plt.figure(figsize=(15, 10))
+    for i in range(10):
+        plt.subplot(2, 5, i + 1)
+        img = plt.imread('cats_and_dogs/test/' + images[i])
+        plt.imshow(img)
+        plt.title(f'Probability: {probabilities[i] * 100:.2f}%')
+        plt.axis('off')
+    plt.show()
+
+# Call the plotting function
+plotImages(test_images, probabilities)
+
